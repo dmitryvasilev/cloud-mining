@@ -108,14 +108,9 @@ describe('CloudMining Administrator', async () => {
     });
 
     it('can\'t set invalid price', async () => {
-        let e = null;
-        try {
+        await assertTxFails(async () => {
             await cloudMining.setPrice(tetherToken.address, 0);
-        } catch (thrownException) {
-            e = thrownException;
-        } finally {
-            assert.isNotNull(e);
-        }
+        }, "Invalid price given");
     });
 
     it('can set second price and use it for purchase', async () => {
@@ -145,25 +140,15 @@ describe('CloudMining Administrator', async () => {
     });
 
     it('fee can not be greater than 50%', async () => {
-        let e = null;
-        try {
-            await cloudMining.methods["setParams(uint256,uint256)"](1, 51, { from: accountOwner });
-        } catch (thrownException) {
-            e = thrownException;
-        } finally {
-            assert.isNotNull(e);
-        }
+        await assertTxFails(async () => {
+            await cloudMining.methods["setParams(uint256,uint8)"](1, 51, { from: accountOwner });
+        }, "Fee can't be greated than 50%");
     });
 
     it('sensitive methods can be called only by creator', async () => {
-        let e = null;
-        try {
-            await cloudMining.methods["setParams(uint256,uint256,uint256,uint256)"](1, 2, 3, 4, { from: accountHolder1 });
-        } catch (thrownException) {
-            e = thrownException;
-        } finally {
-            assert.isNotNull(e);
-        }
+        await assertTxFails(async () => {
+            await cloudMining.methods["setParams(uint256,uint8)"](1, 2, { from: accountHolder1 });
+        }, "Ownable: caller is not the owner");
     });
     
     it('gets USDT when somebody buys tokens', async () => {
@@ -203,15 +188,16 @@ describe('CloudMining Investor entrance', async () => {
         assert.equal(balanceAfter - balanceBefore, amount);
     });
 
+    it('can\'t buy without the price set', async () => {
+        await assertTxFails(async () => {
+            await buyCloudMining(accountHolder1, initialMinAmount, btcToken);
+        }, "No price for given token");
+    });
+
     it('have to make at least minimal investment', async () => {
-        let e = null;
-        try {
-            await buyCloudMining(accountHolder1, initialMinAmount - 1);
-        } catch (thrownException) {
-            e = thrownException;
-        } finally {
-            assert.isNotNull(e);
-        }
+        await assertTxFails(async () => {
+            await buyCloudMining(accountHolder1, initialMinAmount.sub(new BN('1')));
+        }, "Min amount requirement failed");
     });
 
     it('can buy more', async () => {
@@ -221,32 +207,22 @@ describe('CloudMining Investor entrance', async () => {
         await buyCloudMining(accountHolder1, initialMinAmount);
 
         let balanceAfter = await cloudMining.balanceOf(accountHolder1);
-        assert.equal(balanceAfter - balanceBefore, initialMinAmount * 2);
+        assert.equal(balanceAfter - balanceBefore, initialMinAmount.mul(new BN('2')));
     });
 
     it('can\'t buy having insufficient USDT', async () => {
-        let e = null;
-        try {
-            await buyCloudMining(accountHolder4, initialMinAmount * 2);
-        } catch (thrownException) {
-            e = thrownException;
-        } finally {
-            assert.isNotNull(e);
-        }
+        await assertTxFails(async () => {
+            await buyCloudMining(accountHolder4, initialMinAmount.mul(new BN('2')));
+        }, "SafeERC20: low-level call failed");
     });
 
     it('can\'t buy more tokens than contract has left', async () => {
         await buyCloudMining(accountHolder1, initialMinAmount);
         await buyCloudMining(accountHolder2, initialMint.sub(initialMinAmount));
 
-        let e = null;
-        try {
-            await buyCloudMining(accountHolder3, initialMinAmount);
-        } catch (thrownException) {
-            e = thrownException;
-        } finally {
-            assert.isNotNull(e);
-        }
+        await assertTxFails(async () => {
+           await buyCloudMining(accountHolder3, initialMinAmount);
+        }, "No tokens left");
     });
 });
 
@@ -402,7 +378,6 @@ describe('CloudMining ERC20 transfers', async () => {
 });
 
 
-
 function getWei(amountInEther) {
     return new BN(web3.utils.toWei(amountInEther, 'ether'));
 }
@@ -440,5 +415,19 @@ function printTransactionCost(tx, comment) {
         console.log(`\t${comment} tx cost is $${cost} (${gasUsed} gas used)`);
     } else {
         console.log(`tx cost is $${cost} (${gasUsed} gas used)`);
+    }
+}
+
+async function assertTxFails(fn, msg) {
+    let e = null;
+    try {
+        await fn();
+    } catch (thrownException) {
+        e = thrownException;
+    } finally {
+        assert.isNotNull(e);
+        if (msg) {
+            assert.ok(e.message.indexOf(msg) > -1, `Got unexpecded error message: ${e.message}. Expected: ${msg}`);
+        }
     }
 }
