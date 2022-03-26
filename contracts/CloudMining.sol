@@ -36,19 +36,28 @@ contract CloudMining is ERC20, Ownable {
     // Owner's commission
     uint8 public fee;
 
+    // When the contract expires
+    uint public ttl;
 
-    constructor(uint _minAmount, uint8 _fee) ERC20("CloudMining", "CLM") {
+
+    constructor(uint _initialSupply, uint _minAmount, uint8 _fee) ERC20("CloudMining", "CLM") {
+        _mint(address(this), _initialSupply);
+
+        // Smart contract lives 3 years + 1 week since publication
+        ttl = block.timestamp + 3 * (365 + 7) * 86400;
+
         setParams(_minAmount, _fee);
     }
 
 
     function getSummary() public view returns (
-        uint, uint8, address, uint
+        uint, uint8, address, uint, uint
     ) {
         return (
             minAmount,
             fee,
             owner(),
+            ttl,
             investors.length
         );
     }
@@ -78,13 +87,8 @@ contract CloudMining is ERC20, Ownable {
         emit SetParams(minAmount, fee);
     }
 
-
-    function mint(address to, uint256 amount) public onlyOwner {
-        _mint(to, amount);
-    }
-
-
     function enter(address thirdPartyTokenAddress, uint tokensAmount) public {
+        require(block.timestamp < ttl, "Contract expired");
         require(tokensAmount >= minAmount, "Min amount requirement failed");
         require(price[thirdPartyTokenAddress] > 0, "No price for given token");
 

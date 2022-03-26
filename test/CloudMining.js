@@ -1,7 +1,5 @@
 const BN = require("bn.js");
 const { assert } = require("chai");
-const { ethers } = require("hardhat");
-const { extendEnvironment } = require("hardhat/config");
 
 const CloudMining = artifacts.require("CloudMining");
 const TetherToken = artifacts.require("TetherToken");
@@ -27,11 +25,8 @@ beforeEach(async () => {
     btcToken = await TetherToken.new(supportiveTokensMintAmount, 'BTCToken', 'BTC', 18);
     tetherToken = await TetherToken.new(supportiveTokensMintAmount, 'TetherToken', 'USDT', 18);
     
-    cloudMining = await CloudMining.new(initialMinAmount, initialFee);
+    cloudMining = await CloudMining.new(initialMint, initialMinAmount, initialFee);
     await cloudMining.setPrice(tetherToken.address, initialPrice);
-
-    // Mint CloudMining tokens to the contract itself
-    await cloudMining.mint(cloudMining.address, initialMint);
 
     // As USDT creator: Give USDT to account holders
     await tetherToken.transfer(accountHolder1, richDeposit);
@@ -78,10 +73,16 @@ describe('CloudMining Administrator', async () => {
         await buyCloudMining(accountHolder3, initialMinAmount.mul(new BN('3')));
 
         let summary = await cloudMining.getSummary();
+
+        let ttlIdeal = (new Date()).getTime() / 1000 + 3*(365+7)*86400;
+        let ttlActual = summary[3];
+        let ttlDiff = Math.abs(ttlActual - ttlIdeal);
+
         assert.equal(summary[0], initialMinAmount.toString());
         assert.equal(summary[1], initialFee.toString());
         assert.equal(summary[2], accountOwner);
-        assert.equal(summary[3], 3); // Number of investors
+        assert.ok(ttlDiff < 600);
+        assert.equal(summary[4], 3); // Number of investors
     });
 
     it('becomes a contract owner', async () => {
@@ -167,12 +168,10 @@ describe('CloudMining Administrator', async () => {
         assert.equal(actualBalance, expectedBalance);
     });
     
-    it('can mint more', async () => {
-        let mintedBefore = await cloudMining.totalSupply();
-        await cloudMining.mint(cloudMining.address, getWei('10'));
-        let mintedAfter = await cloudMining.totalSupply();
-
-        assert.equal(mintedAfter - mintedBefore, getWei('10'));
+    it('can\'t mint more', async () => {
+        await assertTxFails(async () => {
+            await cloudMining.mint(cloudMining.address, getWei('10'));
+        }, "cloudMining.mint is not a function");
     });
 });
 
@@ -192,6 +191,14 @@ describe('CloudMining Investor entrance', async () => {
         await assertTxFails(async () => {
             await buyCloudMining(accountHolder1, initialMinAmount, btcToken);
         }, "No price for given token");
+    });
+
+    it('can\'t buy after ttl', async () => {
+        await hre.ethers.provider.send('evm_increaseTime', [3.1 * 365 * 86400]);
+
+        await assertTxFails(async () => {
+            await buyCloudMining(accountHolder1, initialMinAmount, btcToken);
+        }, "Contract expired");
     });
 
     it('have to make at least minimal investment', async () => {
@@ -280,20 +287,19 @@ describe('CloudMining Investor rewarding', async () => {
         assert.equal(await cloudMining.getInvestorBalance(accountOwner, ethToken.address), getWei('0.492').toString());
 
         // Day 2
-        await cloudMining.mint(cloudMining.address, getWei('50'));
         await transferToCloudMining(ethToken, getWei('0.25'));
         await transferToCloudMining(ethToken, getWei('0.25')); // Shouldn't break anything (totally mined 0.5 ETH)
         await cloudMining.distribute(ethToken.address);
         await cloudMining.distribute(ethToken.address); // Shouldn't break anything
-        assert.equal(await cloudMining.getInvestorBalance(accountHolder1, ethToken.address), getWei('0.012').toString());
-        assert.equal(await cloudMining.getInvestorBalance(accountOwner, ethToken.address), getWei('0.988').toString());
+        assert.equal(await cloudMining.getInvestorBalance(accountHolder1, ethToken.address), getWei('0.016').toString());
+        assert.equal(await cloudMining.getInvestorBalance(accountOwner, ethToken.address), getWei('0.984').toString());
 
         // Day 3 - Withdrawal test
         await buyCloudMining(accountHolder1, getWei('20'));
         await transferToCloudMining(ethToken, getWei('1'));
         await cloudMining.distribute(ethToken.address);
-        assert.equal(await cloudMining.getInvestorBalance(accountHolder1, ethToken.address), getWei('0.18').toString());
-        assert.equal(await cloudMining.getInvestorBalance(accountOwner, ethToken.address), getWei('1.82').toString());
+        assert.equal(await cloudMining.getInvestorBalance(accountHolder1, ethToken.address), getWei('0.352').toString());
+        assert.equal(await cloudMining.getInvestorBalance(accountOwner, ethToken.address), getWei('1.648').toString());
 
         initialOwnerBalance = await ethToken.balanceOf(accountOwner);
         await cloudMining.withdrawAll();
@@ -303,20 +309,20 @@ describe('CloudMining Investor rewarding', async () => {
 
         assert.equal(await cloudMining.getInvestorBalance(accountHolder1, ethToken.address), 0);
         assert.equal(await cloudMining.getInvestorBalance(accountOwner, ethToken.address), 0);
-        assert.equal((await ethToken.balanceOf(accountHolder1)).toString(), getWei('0.18').toString());
-        assert.equal(currentOwnerBalance.toString(), getWei('1.82').toString());
+        assert.equal((await ethToken.balanceOf(accountHolder1)).toString(), getWei('0.352').toString());
+        assert.equal(currentOwnerBalance.toString(), getWei('1.648').toString());
 
         // Day 4 - works properly after withdrawal
         await transferToCloudMining(ethToken, getWei('0.25'));
         await cloudMining.distribute(ethToken.address);
-        assert.equal(await cloudMining.getInvestorBalance(accountHolder1, ethToken.address), getWei('0.042').toString());
-        assert.equal(await cloudMining.getInvestorBalance(accountOwner, ethToken.address), getWei('0.208').toString());
+        assert.equal(await cloudMining.getInvestorBalance(accountHolder1, ethToken.address), getWei('0.084').toString());
+        assert.equal(await cloudMining.getInvestorBalance(accountOwner, ethToken.address), getWei('0.166').toString());
 
         // Day 5 - investor withdraws his funds
         await transferToCloudMining(ethToken, getWei('1'));
         await cloudMining.distribute(ethToken.address);
-        assert.equal(await cloudMining.getInvestorBalance(accountHolder1, ethToken.address), getWei('0.21').toString());
-        assert.equal(await cloudMining.getInvestorBalance(accountOwner, ethToken.address), getWei('1.04').toString());
+        assert.equal(await cloudMining.getInvestorBalance(accountHolder1, ethToken.address), getWei('0.42').toString());
+        assert.equal(await cloudMining.getInvestorBalance(accountOwner, ethToken.address), getWei('0.83').toString());
 
         initialOwnerBalance = await ethToken.balanceOf(accountOwner);
         await cloudMining.methods["withdraw(address)"](ethToken.address, { from: accountHolder1 });
@@ -324,7 +330,7 @@ describe('CloudMining Investor rewarding', async () => {
         currentOwnerBalance = await ethToken.balanceOf(accountOwner);
         currentOwnerBalance = currentOwnerBalance.sub(initialOwnerBalance);
 
-        let expectedAccountHolder1Balance = "" + (0.18 + 0.21);
+        let expectedAccountHolder1Balance = "" + (0.352 + 0.42);
         assert.equal((await ethToken.balanceOf(accountHolder1)).toString(), getWei(expectedAccountHolder1Balance).toString());
         assert.equal(currentOwnerBalance.toString(), 0);
     });
@@ -346,6 +352,8 @@ describe('CloudMining Investor rewarding', async () => {
 
         printTransactionCost(await cloudMining.methods["withdraw(address)"](ethToken.address, { from: accountHolder1 }), 'withdraw to one investor');
         printTransactionCost(await cloudMining.withdrawAll(), 'withdraw to all investors');
+
+        printTransactionCost(await cloudMining.setPrice(ethToken.address, getWei('1')), 'set price');
     });
 
 });
