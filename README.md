@@ -9,6 +9,7 @@ npx hardhat test
 npx hardhat run scripts/deploy.js
 
 npx hardhat mint --address <address> --amount 100
+npx hardhat setprice --address <address> --token <address> --price 100
 npx hardhat balance --address <address>
 npx hardhat summary --address <address>
 
