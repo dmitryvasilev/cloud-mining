@@ -1,0 +1,7 @@
+#!/bin/sh
+
+# Flattens source code, removes duplicated license lines and TetherToken contract
+npx hardhat flatten > flatten.tmp
+echo "// SPDX-License-Identifier: MIT" > flatten.sol
+sed '/^\/\/ SPDX-License-Identifier/d' flatten.tmp | sed -n '/File contracts\/TetherToken.sol/q;p' >> flatten.sol
+rm flatten.tmp
