@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.4;
 
-//import "hardhat/console.sol";
+// import "hardhat/console.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
@@ -19,6 +19,10 @@ contract CloudMining is ERC20, Ownable {
     // The previous contract's balance of mined tokens
     mapping (address => uint) public minedTokensPreviousBalance;
 
+    // Price by 3rd party token
+    mapping (address => uint) public price;
+    address[] public priceTokens;
+
     // Array of all investors addresses
     address[] public investors;
 
@@ -26,48 +30,52 @@ contract CloudMining is ERC20, Ownable {
     // investorRewardByMinedToken = investorsRewards[minedTokenAddress][investorAddress]
     mapping (address => mapping (address => uint)) public investorsRewards;
 
-    // Address of USDT token to buy ours
-    address public tetherToken;
-
     // Minimal amount of our tokens investor can buy
     uint public minAmount;
-
-    // Current price of our token in USDT
-    uint public price;
 
     // Owner's commission
     uint8 public fee;
 
 
-    constructor(uint _minAmount, uint _price, uint8 _fee, address _tetherToken) ERC20("CloudMining", "CLM") {
-        tetherToken = _tetherToken;
-        setParams(_minAmount, _price, _fee);
+    constructor(uint _minAmount, uint8 _fee) ERC20("CloudMining", "CLM") {
+        setParams(_minAmount, _fee);
     }
 
 
     function getSummary() public view returns (
-        uint, uint, uint8, address, address, uint
+        uint, uint8, address, uint
     ) {
         return (
             minAmount,
-            price,
             fee,
-            tetherToken,
             owner(),
             investors.length
         );
     }
 
+    function getPriceTokens() public view returns (address[] memory) {
+        return priceTokens;
+    }
 
-    function setParams(uint _minAmount, uint _price, uint8 _fee) public onlyOwner {
+    function setPrice(address _thirdPartyTokenAddress, uint _price) public onlyOwner {
+        require(_price > 0, "Invalid price given");
+
+        if (price[_thirdPartyTokenAddress] == 0) {
+            priceTokens.push(_thirdPartyTokenAddress);
+        }
+
+        price[_thirdPartyTokenAddress] = _price;
+        emit SetPrice(_thirdPartyTokenAddress, _price);
+    }
+
+    function setParams(uint _minAmount, uint8 _fee) public onlyOwner {
         // Ensure transparency by hardcoding limit beyond which fees can never be added
-        require(_fee <= 50);
+        require(_fee <= 50, "Fee can't be greated than 50%");
 
         minAmount = _minAmount;
-        price = _price;
         fee = _fee;
 
-        emit SetParams(minAmount, price, fee);
+        emit SetParams(minAmount, fee);
     }
 
 
@@ -76,21 +84,22 @@ contract CloudMining is ERC20, Ownable {
     }
 
 
-    function enter(uint tokensAmount) public {
-        require(tokensAmount >= minAmount);
+    function enter(address thirdPartyTokenAddress, uint tokensAmount) public {
+        require(tokensAmount >= minAmount, "Min amount requirement failed");
+        require(price[thirdPartyTokenAddress] > 0, "No price for given token");
 
-        uint tetherAmount = tokensAmount.mul(price).div(10**18);
-        // console.log("enter: Investor wants to buy %s tokens with price %s USDT. The cost will be %s", tokensAmount, price, tetherAmount);
+        uint thirdPartyTokenAmount = tokensAmount.mul(price[thirdPartyTokenAddress]).div(10**18);
+        // console.log("enter: Investor wants to buy %s tokens with price %s USDT. The cost will be %s", tokensAmount, (price[thirdPartyTokenAddress], thirdPartyTokenAmount);
 
-        require(balanceOf(address(this)) >= tokensAmount);
+        require(balanceOf(address(this)) >= tokensAmount, "No tokens left");
         // console.log("enter: Contract still has %s tokens", balanceOf(address(this)));
 
-        ERC20 usdt = ERC20(tetherToken);
-        // console.log("enter: USDT allowance is %s", usdt.allowance(_msgSender(), address(this)));
+        ERC20 thirdPartyToken = ERC20(thirdPartyTokenAddress);
+        // console.log("enter: USDT allowance is %s", thirdPartyToken.allowance(_msgSender(), address(this)));
 
-        // console.log("enter: USDT balance of owner is %s (before)", usdt.balanceOf(owner()));
-        usdt.safeTransferFrom(_msgSender(), owner(), tetherAmount);
-        // console.log("enter: USDT balance of owner is %s (after)", usdt.balanceOf(owner()));
+        // console.log("enter: USDT balance of owner is %s (before)", thirdPartyToken.balanceOf(owner()));
+        thirdPartyToken.safeTransferFrom(_msgSender(), owner(), thirdPartyTokenAmount);
+        // console.log("enter: USDT balance of owner is %s (after)", thirdPartyToken.balanceOf(owner()));
 
         ERC20(address(this)).safeTransfer(_msgSender(), tokensAmount);
         // console.log("enter: Investor's balance is now: %s tokens", balanceOf(_msgSender()));
@@ -242,7 +251,8 @@ contract CloudMining is ERC20, Ownable {
     }
     
 
-    event SetParams(uint _minAmount, uint _price, uint8 _fee);
+    event SetPrice(address _token, uint _price);
+    event SetParams(uint _minAmount, uint8 _fee);
     event Distribute(address _investorAddress, address _minedTokenAddress, uint _investorReward);
     event Withdraw(address _investorAddress, address _minedTokenAddress, uint _amount);
 }

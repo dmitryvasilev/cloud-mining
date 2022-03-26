@@ -17,14 +17,13 @@ async function main() {
 
     // We get the contract to deploy
     const CloudMining = await hre.ethers.getContractFactory("CloudMining");
-    const cloudMining = await CloudMining.deploy(conf.minAmount, conf.price, conf.fee, conf.usdtAddress);
+    const cloudMining = await CloudMining.deploy(conf.minAmount, conf.fee);
     
     let tx = await cloudMining.deployed();
 
     console.log('Success! Deployment details:');
     console.log('- Contract address:', cloudMining.address);
     console.log('- Transaction:', tx.deployTransaction.hash);
-    console.log('- Block number:', tx.provider._emitted.block);
   }, 5000);
 }
 

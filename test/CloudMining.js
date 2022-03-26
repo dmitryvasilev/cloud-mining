@@ -26,7 +26,9 @@ beforeEach(async () => {
     ethToken = await TetherToken.new(supportiveTokensMintAmount, 'ETHToken', 'ETH', 18);
     btcToken = await TetherToken.new(supportiveTokensMintAmount, 'BTCToken', 'BTC', 18);
     tetherToken = await TetherToken.new(supportiveTokensMintAmount, 'TetherToken', 'USDT', 18);
-    cloudMining = await CloudMining.new(initialMinAmount, initialPrice, initialFee, tetherToken.address);
+    
+    cloudMining = await CloudMining.new(initialMinAmount, initialFee);
+    await cloudMining.setPrice(tetherToken.address, initialPrice);
 
     // Mint CloudMining tokens to the contract itself
     await cloudMining.mint(cloudMining.address, initialMint);
@@ -65,9 +67,9 @@ describe('CloudMining Administrator', async () => {
 
     it('variables initialized correctly', async () => {
         assert.equal(await cloudMining.minAmount(), initialMinAmount.toString());
-        assert.equal(await cloudMining.price(), initialPrice.toString());
         assert.equal(await cloudMining.fee(), initialFee.toString());
-        assert.equal(await cloudMining.tetherToken(), tetherToken.address);
+        assert.equal(await cloudMining.price(tetherToken.address), initialPrice.toString());
+        assert.equal(await cloudMining.priceTokens(0), tetherToken.address);
     });
 
     it('getSummary() works correctly', async () => {
@@ -77,11 +79,9 @@ describe('CloudMining Administrator', async () => {
 
         let summary = await cloudMining.getSummary();
         assert.equal(summary[0], initialMinAmount.toString());
-        assert.equal(summary[1], initialPrice.toString());
-        assert.equal(summary[2], initialFee.toString());
-        assert.equal(summary[3], tetherToken.address);
-        assert.equal(summary[4], accountOwner);
-        assert.equal(summary[5], 3);
+        assert.equal(summary[1], initialFee.toString());
+        assert.equal(summary[2], accountOwner);
+        assert.equal(summary[3], 3); // Number of investors
     });
 
     it('becomes a contract owner', async () => {
@@ -90,17 +90,64 @@ describe('CloudMining Administrator', async () => {
     });
 
     it('can change initial params', async () => {
-        await cloudMining.setParams(initialMinAmount + 11, initialPrice + 12, initialFee + 13);
-
+        await cloudMining.setParams(initialMinAmount + 11, initialFee + 12);
         assert.equal(await cloudMining.minAmount(), initialMinAmount + 11);
-        assert.equal(await cloudMining.price(), initialPrice + 12);
-        assert.equal(await cloudMining.fee(), initialFee + 13);
+        assert.equal(await cloudMining.fee(), initialFee + 12);
+    });
+
+    it('can change price', async () => {
+        await cloudMining.setPrice(tetherToken.address, initialPrice + 10);
+        await cloudMining.setPrice(tetherToken.address, initialPrice + 10); // Shouldn't create a duplicate
+        assert.equal((await cloudMining.getPriceTokens()).length, 1);
+
+        await cloudMining.setPrice(btcToken.address, initialPrice + 11);
+        assert.equal((await cloudMining.getPriceTokens()).length, 2);
+
+        assert.equal(await cloudMining.price(tetherToken.address), initialPrice + 10);
+        assert.equal(await cloudMining.price(btcToken.address), initialPrice + 11);
+    });
+
+    it('can\'t set invalid price', async () => {
+        let e = null;
+        try {
+            await cloudMining.setPrice(tetherToken.address, 0);
+        } catch (thrownException) {
+            e = thrownException;
+        } finally {
+            assert.isNotNull(e);
+        }
+    });
+
+    it('can set second price and use it for purchase', async () => {
+        let priceInBTC = getWei('0.05');
+
+        await cloudMining.setPrice(btcToken.address, priceInBTC);
+
+        // USDT price remains untouchable
+        assert.equal((await cloudMining.price(tetherToken.address)).toString(), initialPrice.toString());
+
+        // BTC price was set correctly
+        assert.equal((await cloudMining.price(btcToken.address)).toString(), priceInBTC.toString());
+        assert.equal(await cloudMining.priceTokens(1), btcToken.address);
+
+        // Load account1 with test BTC
+        await btcToken.transfer(accountHolder1, priceInBTC);
+
+        // Check investor can buy and then owner's balance increased
+        let balanceBefore = await btcToken.balanceOf(accountOwner);
+        await buyCloudMining(accountHolder1, initialMinAmount, btcToken);
+        let balanceAfter = await btcToken.balanceOf(accountOwner);
+
+        let actualBalance = new BN(balanceAfter).sub(balanceBefore).toString();
+        let expectedBalance = initialMinAmount.mul(priceInBTC).div(new BN(''+10**18));
+
+        assert.equal(actualBalance.toString(), expectedBalance.toString());
     });
 
     it('fee can not be greater than 50%', async () => {
         let e = null;
         try {
-            await cloudMining.methods["setParams(uint256,uint256,uint256,uint256)"](1, 2, 51, { from: accountOwner });
+            await cloudMining.methods["setParams(uint256,uint256)"](1, 51, { from: accountOwner });
         } catch (thrownException) {
             e = thrownException;
         } finally {
@@ -356,7 +403,6 @@ describe('CloudMining ERC20 transfers', async () => {
 
 
 
-
 function getWei(amountInEther) {
     return new BN(web3.utils.toWei(amountInEther, 'ether'));
 }
@@ -365,17 +411,21 @@ async function transferToCloudMining(token, amountInWei) {
     return await token.transfer(cloudMining.address, amountInWei);
 }
 
-async function buyCloudMining(investorAddress, tokensAmountInWei) {
-    let decimalCurrentPrice = web3.utils.fromWei(await cloudMining.price());
+async function buyCloudMining(investorAddress, tokensAmountInWei, thirdPartyToken) {
+    if (thirdPartyToken === undefined) {
+        thirdPartyToken = tetherToken;
+    }
+
+    let decimalCurrentPrice = web3.utils.fromWei(await cloudMining.price(thirdPartyToken.address));
     let decimalTokensAmount = web3.utils.fromWei(tokensAmountInWei);
 
-    let tetherAmount = getWei((decimalCurrentPrice * decimalTokensAmount).toString());
+    let thirdPartyTokenAmount = getWei((decimalCurrentPrice * decimalTokensAmount).toString());
     
     // As investor: Allow CloudMining to withdraw USDT from Investor account
-    await tetherToken.methods["approve(address,uint256)"](cloudMining.address, tetherAmount.toString(), { from: investorAddress });
+    await thirdPartyToken.methods["approve(address,uint256)"](cloudMining.address, thirdPartyTokenAmount.toString(), { from: investorAddress });
 
     // As investor: Attempt to enter in CloudMining and trigger USDT transfer to owner
-    return await cloudMining.methods["enter(uint256)"](tokensAmountInWei.toString(), { from: investorAddress });
+    return await cloudMining.methods["enter(address,uint256)"](thirdPartyToken.address, tokensAmountInWei.toString(), { from: investorAddress });
 }
 
 function printTransactionCost(tx, comment) {
