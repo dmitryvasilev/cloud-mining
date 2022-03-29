@@ -35,6 +35,7 @@ contract CloudMining is ERC20, Ownable {
 
     // Owner's commission
     uint8 public fee;
+    mapping (address => uint) public feeTotalAmount;
 
     // When the contract expires
     uint public ttl;
@@ -166,6 +167,7 @@ contract CloudMining is ERC20, Ownable {
 
             uint investorReward = minedAmount.mul(investorBalance).div(totalSupply);
             uint commission = investorReward.mul(fee).div(100);
+            feeTotalAmount[minedTokenAddress] += commission;
 
             investorReward = investorReward.sub(commission);
             minedAmountRemainder = minedAmountRemainder.sub(investorReward);

@@ -275,6 +275,30 @@ describe('CloudMining Investor rewarding', async () => {
         assert.equal((await cloudMining.getInvestorBalance(accountOwner, btcToken.address)).toString(), getWei('1'));
     });
 
+    it("comissions amount calculates and saves properly", async () => {
+        const investorTokens = getWei('1');
+        const minedEth = getWei('1');
+        const minedBtc = getWei('2');
+        
+        await buyCloudMining(accountHolder1, investorTokens);
+
+        await transferToCloudMining(ethToken, minedEth);
+        await transferToCloudMining(btcToken, minedBtc);
+
+        await cloudMining.distribute(ethToken.address);
+        await cloudMining.distribute(btcToken.address);
+
+        // Consider BTC mined twice to check if commissions will be growing
+        await transferToCloudMining(btcToken, minedBtc);
+        await cloudMining.distribute(btcToken.address);
+
+        let expectedEthFee = minedEth.mul(investorTokens).mul(new BN(initialFee)).div(initialMint).div(new BN('100')).toString();
+        let expectedBtcFee = minedBtc.mul(investorTokens).mul(new BN(initialFee)).div(initialMint).div(new BN('100')).mul(new BN('2')).toString();
+
+        assert.equal((await cloudMining.feeTotalAmount(ethToken.address)).toString(), expectedEthFee);
+        assert.equal((await cloudMining.feeTotalAmount(btcToken.address)).toString(), expectedBtcFee);
+    });
+
     // According to test case: https://docs.google.com/spreadsheets/d/1hZivEsP4b2RT_avWxKxebXD6AW-veAqaDJQar1e_WFE/edit#gid=2121616660
     it('end-to-end test', async () => {
         let initialOwnerBalance, currentOwnerBalance;
