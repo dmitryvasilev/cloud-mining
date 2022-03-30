@@ -2,6 +2,9 @@ task("balance", "Total supply of ERC-20 token")
 .addParam("account", "Account address")
 .setAction(async function ({ account }, { ethers: { getSigners } }, runSuper) {
   const allTokens = {
+    'bscTestnet': [
+      '0xeAf9ec4Ff67D5AB3cc0f4D15CCb7A3e088653d39', // USDT
+    ],
     'bscMainnet': [
       '0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c', // BTCB
       '0x2170ed0880ac9a755fd29b2688956bd959f933f8', // ETH

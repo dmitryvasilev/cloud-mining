@@ -6,15 +6,18 @@ require("@nomiclabs/hardhat-truffle5");
 
 require('./tasks/accounts');
 require('./tasks/balance');
+require('./tasks/deploy');
+require('./tasks/distribute');
 require('./tasks/mint');
 require('./tasks/setprice');
 require('./tasks/summary');
+
 
 /**
  * @type import('hardhat/config').HardhatUserConfig
  */
 module.exports = {
-  defaultNetwork: "hardhat",
+  defaultNetwork: process.env.NETWORK,
 
   networks: {
     localhost: {

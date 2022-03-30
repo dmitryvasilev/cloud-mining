@@ -6,7 +6,7 @@ Designed to be used on Binance Smart Chain.
 npm install
 npx hardhat test
 
-npx hardhat run scripts/deploy.js
+npx hardhat deploy --mint 100 --min 1 --fee 20 --dryrun 1
 
 npx hardhat mint --address <address> --amount 100
 npx hardhat setprice --address <address> --token <address> --price 100
