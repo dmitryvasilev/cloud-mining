@@ -3,7 +3,7 @@ const client = new Spot(process.env.BINANCE_API_KEY, process.env.BINANCE_API_SEC
 
 const config = {
   // We can have more power than contracts will handle
-  totalPower: 200,
+  totalPower: 100,
 
   assets: {
     'ETH': '0x2170ed0880ac9a755fd29b2688956bd959f933f8', 
