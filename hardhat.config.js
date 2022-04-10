@@ -34,7 +34,7 @@ module.exports = {
     bscMainnet: {
       url: "https://bsc-dataseed.binance.org/",
       chainId: 56,
-      gasPrice: 20000000000,
+      gasPrice: 5000000000,
       accounts: {mnemonic: process.env.MNEMONIC}
     }
   },
@@ -43,9 +43,17 @@ module.exports = {
     compilers: [
       {
         version: "0.8.4",
+        optimizer: {
+          enabled: true,
+          runs: 2000
+        }
       },
       {
         version: "0.4.17",
+        optimizer: {
+          enabled: true,
+          runs: 2000
+        }
       },
     ],
   },
