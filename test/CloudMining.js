@@ -77,13 +77,16 @@ describe('CloudMining Administrator', async () => {
         let ttlIdeal = (new Date()).getTime() / 1000 + 3*(365+7)*86400;
         let ttlActual = summary[3];
         let ttlDiff = Math.abs(ttlActual - ttlIdeal);
+        let amountLeft = web3.utils.fromWei(initialMint, 'ether') - (1 + 2 + 3 + 4);
 
         assert.equal(summary[0], initialMinAmount.toString());
         assert.equal(summary[1], initialFee.toString());
         assert.equal(summary[2], accountOwner);
         assert.ok(ttlDiff < 600);
-        assert.equal(summary[4].toString(), getWei('4')); // Investor tokens amount
-        assert.equal(summary[5], 3); // Number of investors
+        assert.equal(summary[4].toString(), initialMint); // Total supply
+        assert.equal(summary[5].toString(), getWei(amountLeft + '')); // Tokens left amount
+        assert.equal(summary[6].toString(), getWei('4')); // Investor tokens amount
+        assert.equal(summary[7], 3); // Number of investors
     });
 
     it('becomes a contract owner', async () => {

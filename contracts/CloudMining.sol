@@ -52,13 +52,15 @@ contract CloudMining is ERC20, Ownable {
 
 
     function getSummary() public view returns (
-        uint, uint8, address, uint, uint, uint
+        uint, uint8, address, uint, uint, uint, uint, uint
     ) {
         return (
             minAmount,
             fee,
             owner(),
             ttl,
+            totalSupply(),
+            balanceOf(address(this)),
             balanceOf(_msgSender()),
             investors.length
         );
