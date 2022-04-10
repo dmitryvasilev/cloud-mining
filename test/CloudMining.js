@@ -71,9 +71,9 @@ describe('CloudMining Administrator', async () => {
         await buyCloudMining(accountHolder1, initialMinAmount.mul(new BN('1')));
         await buyCloudMining(accountHolder2, initialMinAmount.mul(new BN('2')));
         await buyCloudMining(accountHolder3, initialMinAmount.mul(new BN('3')));
+        await buyCloudMining(accountOwner, initialMinAmount.mul(new BN('4')));
 
         let summary = await cloudMining.getSummary();
-
         let ttlIdeal = (new Date()).getTime() / 1000 + 3*(365+7)*86400;
         let ttlActual = summary[3];
         let ttlDiff = Math.abs(ttlActual - ttlIdeal);
@@ -82,7 +82,8 @@ describe('CloudMining Administrator', async () => {
         assert.equal(summary[1], initialFee.toString());
         assert.equal(summary[2], accountOwner);
         assert.ok(ttlDiff < 600);
-        assert.equal(summary[4], 3); // Number of investors
+        assert.equal(summary[4].toString(), getWei('4')); // Investor tokens amount
+        assert.equal(summary[5], 3); // Number of investors
     });
 
     it('becomes a contract owner', async () => {
@@ -379,7 +380,6 @@ describe('CloudMining Investor rewarding', async () => {
 
         printTransactionCost(await cloudMining.setPrice(ethToken.address, getWei('1')), 'set price');
     });
-
 });
 
 
