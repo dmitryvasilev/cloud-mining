@@ -1,0 +1,13 @@
+version: '3'
+
+services:
+
+  node:
+    build:
+      context: ./docker/node
+      dockerfile: Dockerfile
+    volumes:
+      - "./:/var/www"
+    ports:
+      - 3000:3080
+
