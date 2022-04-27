@@ -3,10 +3,18 @@
 cd "$(dirname "$0")/.."
 export $(grep -v '^#' .env | xargs) 2>/dev/null
 
+# Load the same environment variables as interactive shell
+if [ -f ~/.profile ]; then
+      . ~/.profile
+fi
+if [ -f ~/.bash_profile ]; then
+      . ~/.bash_profile
+fi
+
 # Support both interactive and non-interactive mode
 if [ -t 0 ]; then
-    /usr/local/bin/docker-compose run -u1000:1000 node sh $@
+    /usr/local/bin/docker-compose run -u${UID}:${GUID} node sh $@
 else
-    /usr/local/bin/docker-compose run -u1000:1000 -T node sh $@
+    /usr/local/bin/docker-compose run -u${UID}:${GUID} -T node sh $@
 fi
 
