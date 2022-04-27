@@ -1,0 +1,12 @@
+#!/bin/bash
+
+cd "$(dirname "$0")/.."
+export $(grep -v '^#' .env | xargs) 2>/dev/null
+
+# Support both interactive and non-interactive mode
+if [ -t 0 ]; then
+    /usr/local/bin/docker-compose run -u1000:1000 node npx hardhat $@
+else
+    /usr/local/bin/docker-compose run -u1000:1000 -T node npx hardhat $@
+fi
+
