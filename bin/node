@@ -13,8 +13,8 @@ fi
 
 # Support both interactive and non-interactive mode
 if [ -t 0 ]; then
-    /usr/local/bin/docker-compose run -u${UID}:${GUID} node sh $@
+    /usr/local/bin/docker-compose run --rm -unode:node node sh $@
 else
-    /usr/local/bin/docker-compose run -u${UID}:${GUID} -T node sh $@
+    /usr/local/bin/docker-compose run --rm -unode:node -T node sh $@
 fi
 
