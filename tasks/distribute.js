@@ -1,5 +1,6 @@
 const { Spot } = require('@binance/connector');
 const client = new Spot(process.env.BINANCE_API_KEY, process.env.BINANCE_API_SECRET)
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
 
 const config = {
   // We can have more power than contracts will handle
@@ -86,8 +87,15 @@ const distributeAsset = async (asset, contracts) => {
     let contract = contracts[k];
     let amount = asset.free * contract.share;
 
-    await withdrawTo(amount, asset.asset, contract.address);
-    await triggerDistribute(contract.address, asset.address);
+    if (amount >= 0.00014) {
+      await withdrawTo(amount, asset.asset, contract.address);
+
+      console.log('Waiting 30s before distribution...');
+      await delay(30000);
+      
+      await triggerDistribute(contract.address, asset.address);
+    }
+
   }
 }
 
@@ -101,10 +109,13 @@ const withdrawTo = async (amount, asset, recipient) => {
     amount,
     {
       network: 'BSC', // BNB?
+      walletType: 1 // Funding wallet
     }
   )
   .then(response => result = response)
-  .catch((error) => {
+  .catch((error) => { 
+    console.log(error);
+    console.error(error.response.data.msg);
     throw new Error(error);
   })
 
