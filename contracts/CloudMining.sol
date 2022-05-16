@@ -45,7 +45,7 @@ contract CloudMining is ERC20, Ownable {
         _mint(address(this), _initialSupply);
 
         // Smart contract lives 3 years + 1 week since publication
-        ttl = block.timestamp + 3 * (365 + 7) * 86400;
+        ttl = block.timestamp + (3 * 365 + 7) * 86400;
 
         setParams(_minAmount, _fee);
     }

@@ -74,7 +74,7 @@ describe('CloudMining Administrator', async () => {
         await buyCloudMining(accountOwner, initialMinAmount.mul(new BN('4')));
 
         let summary = await cloudMining.getSummary();
-        let ttlIdeal = (new Date()).getTime() / 1000 + 3*(365+7)*86400;
+        let ttlIdeal = (new Date()).getTime() / 1000 + (3 * 365 + 7)*86400;
         let ttlActual = summary[3];
         let ttlDiff = Math.abs(ttlActual - ttlIdeal);
         let amountLeft = web3.utils.fromWei(initialMint, 'ether') - (1 + 2 + 3 + 4);
